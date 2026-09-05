@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SpotiCraft Cloud Audio Player</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Plus Jakarta Sans', sans-serif; }
+        body {
+            background: radial-gradient(circle at top, #1e1e24 0%, #0d0d11 100%);
+            color: #ffffff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 20px;
+            overflow: hidden;
+        }
+        .player-card {
+            background: rgba(25, 25, 32, 0.85);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 28px;
+            padding: 36px;
+            width: 100%;
+            max-width: 440px;
+            text-align: center;
+            box-shadow: 0 24px 60px rgba(0,0,0,0.6), 0 0 40px rgba(29, 185, 84, 0.15);
+            position: relative;
+        }
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 14px;
+            background: rgba(29, 185, 84, 0.15);
+            color: #1DB954;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+            margin-bottom: 24px;
+            border: 1px solid rgba(29, 185, 84, 0.3);
+        }
+        .pulse-dot {
+            width: 8px;
+            height: 8px;
+            background: #1DB954;
+            border-radius: 50%;
+            box-shadow: 0 0 12px #1DB954;
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0% { transform: scale(0.95); opacity: 0.7; }
+            50% { transform: scale(1.3); opacity: 1; }
+            100% { transform: scale(0.95); opacity: 0.7; }
+        }
+        .album-art-container {
+            position: relative;
+            width: 200px;
+            height: 200px;
+            margin: 0 auto 24px;
+        }
+        .album-art {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            object-fit: cover;
+            box-shadow: 0 12px 32px rgba(0,0,0,0.5);
+            border: 4px solid rgba(255,255,255,0.1);
+            animation: rotateAlbum 20s linear infinite;
+            animation-play-state: paused;
+        }
+        .album-art.playing {
+            animation-play-state: running;
+        }
+        @keyframes rotateAlbum {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        .album-center {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 44px;
+            height: 44px;
+            background: #191920;
+            border-radius: 50%;
+            border: 3px solid #1DB954;
+        }
+        .track-title {
+            font-size: 20px;
+            font-weight: 700;
+            color: #ffffff;
+            margin-bottom: 6px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .track-artist {
+            font-size: 14px;
+            color: #a0a0b0;
+            margin-bottom: 20px;
+        }
+        .progress-bar-container {
+            width: 100%;
+            background: rgba(255,255,255,0.08);
+            height: 6px;
+            border-radius: 3px;
+            overflow: hidden;
+            margin-bottom: 8px;
+            position: relative;
+        }
+        .progress-bar-fill {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #1DB954, #1ed760);
+            transition: width 0.3s ease;
+        }
+        .time-labels {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: #707085;
+            margin-bottom: 20px;
+        }
+        .controls {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+        }
+        .btn-action {
+            background: rgba(255,255,255,0.08);
+            border: none;
+            color: #fff;
+            border-radius: 50%;
+            width: 48px;
+            height: 48px;
+            cursor: pointer;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: 0.2s;
+        }
+        .btn-action:hover { background: rgba(255,255,255,0.15); transform: scale(1.05); }
+        .btn-play {
+            background: #1DB954;
+            color: #000;
+            width: 58px;
+            height: 58px;
+            font-size: 22px;
+            box-shadow: 0 4px 16px rgba(29, 185, 84, 0.4);
+        }
+        .btn-play:hover { background: #1ed760; transform: scale(1.08); }
+        .hint {
+            margin-top: 24px;
+            font-size: 12px;
+            color: #606075;
+        }
+        #yt-player { position: absolute; left: -9999px; top: -9999px; width: 1px; height: 1px; opacity: 0; }
+    </style>
+</head>
+<body>
+    <div class="player-card">
+        <div class="badge">
+            <div class="pulse-dot"></div>
+            <span id="conn-status">Cloud Relay: Menghubungkan...</span>
+        </div>
+
+        <div class="album-art-container">
+            <img id="album-art" class="album-art" src="https://i.imgur.com/8QZqX4Y.png" alt="Cover">
+            <div class="album-center"></div>
+        </div>
+
+        <h2 id="track-title" class="track-title">Menunggu Lagu...</h2>
+        <p id="track-artist" class="track-artist">Ketik /music play &lt;judul lagu&gt; di Minecraft</p>
+
+        <div class="progress-bar-container">
+            <div id="progress-fill" class="progress-bar-fill"></div>
+        </div>
+        <div class="time-labels">
+            <span id="time-current">0:00</span>
+            <span id="time-duration">0:00</span>
+        </div>
+
+        <div class="controls">
+            <button id="btn-toggle" class="btn-action btn-play" onclick="userTogglePlay()">▶</button>
+        </div>
+
+        <p class="hint">Biarkan tab ini tetap terbuka di background browser kamu saat bermain Minecraft.</p>
+    </div>
+
+    <div id="yt-player"></div>
+
+    <script src="https://www.youtube.com/iframe_api"></script>
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const sessionId = urlParams.get('session') || '';
+        const cleanId = sessionId.replace(/-/g, '');
+        let ytPlayer = null;
+        let currentDuration = 1;
+        let currentVol = 80;
+
+        function onYouTubeIframeAPIReady() {
+            ytPlayer = new YT.Player('yt-player', {
+                height: '200',
+                width: '200',
+                playerVars: { 'autoplay': 1, 'controls': 0, 'disablekb': 1, 'enablejsapi': 1 },
+                events: {
+                    'onReady': onPlayerReady,
+                    'onStateChange': onPlayerStateChange
+                }
+            });
+        }
+
+        function onPlayerReady(event) {
+            event.target.setVolume(currentVol);
+            connectCloudRelay();
+        }
+
+        function onPlayerStateChange(event) {
+            const art = document.getElementById('album-art');
+            const btn = document.getElementById('btn-toggle');
+            if (event.data === YT.PlayerState.PLAYING) {
+                art.classList.add('playing');
+                btn.innerText = '⏸';
+                currentDuration = ytPlayer.getDuration() || currentDuration;
+                document.getElementById('time-duration').innerText = formatTime(currentDuration);
+            } else {
+                art.classList.remove('playing');
+                btn.innerText = '▶';
+            }
+        }
+
+        function connectCloudRelay() {
+            if (!cleanId) {
+                document.getElementById('conn-status').innerText = 'Ketik /music connect di game';
+                return;
+            }
+            const sseUrl = 'https://ntfy.sh/spoticraft_' + cleanId + '/sse';
+            const evtSource = new EventSource(sseUrl);
+
+            evtSource.onmessage = (event) => {
+                try {
+                    const wrapper = JSON.parse(event.data);
+                    let data = wrapper;
+                    if (wrapper.message) {
+                        try { data = JSON.parse(wrapper.message); } catch (e) { data = wrapper; }
+                    }
+                    handleCommand(data);
+                } catch (err) {
+                    console.error('Error parsing command:', err);
+                }
+            };
+
+            evtSource.onerror = () => {
+                document.getElementById('conn-status').innerText = 'Cloud: Menyambung...';
+            };
+            evtSource.onopen = () => {
+                document.getElementById('conn-status').innerText = '🟢 Cloud Relay: Terhubung';
+            };
+        }
+
+        function handleCommand(data) {
+            const action = data.action;
+            if (!action) return;
+
+            if (action === 'play') {
+                document.getElementById('track-title').innerText = data.title || 'Playing';
+                document.getElementById('track-artist').innerText = data.artist || '';
+                if (data.thumbnail) document.getElementById('album-art').src = data.thumbnail;
+                if (data.volume !== undefined) currentVol = data.volume;
+                if (data.duration) {
+                    currentDuration = data.duration;
+                    document.getElementById('time-duration').innerText = formatTime(currentDuration);
+                }
+                if (ytPlayer && ytPlayer.loadVideoById) {
+                    ytPlayer.setVolume(currentVol);
+                    if (data.id && !data.id.startsWith('search:')) {
+                        ytPlayer.loadVideoById(data.id);
+                    } else if (data.url) {
+                        ytPlayer.loadVideoByUrl(data.url);
+                    }
+                    ytPlayer.playVideo();
+                }
+            } else if (action === 'pause') {
+                if (ytPlayer && ytPlayer.pauseVideo) ytPlayer.pauseVideo();
+            } else if (action === 'resume') {
+                if (ytPlayer && ytPlayer.playVideo) ytPlayer.playVideo();
+            } else if (action === 'stop') {
+                if (ytPlayer && ytPlayer.stopVideo) ytPlayer.stopVideo();
+                document.getElementById('track-title').innerText = 'Musik Dihentikan';
+                document.getElementById('track-artist').innerText = '';
+            } else if (action === 'volume') {
+                if (data.volume !== undefined) {
+                    currentVol = data.volume;
+                    if (ytPlayer && ytPlayer.setVolume) ytPlayer.setVolume(currentVol);
+                }
+            }
+        }
+
+        function userTogglePlay() {
+            if (!ytPlayer) return;
+            const state = ytPlayer.getPlayerState();
+            if (state === YT.PlayerState.PLAYING) {
+                ytPlayer.pauseVideo();
+            } else {
+                ytPlayer.playVideo();
+            }
+        }
+
+        setInterval(() => {
+            if (!ytPlayer || !ytPlayer.getCurrentTime) return;
+            const current = Math.floor(ytPlayer.getCurrentTime()) || 0;
+            const dur = Math.floor(ytPlayer.getDuration()) || currentDuration;
+            if (dur > 0) {
+                const percent = Math.min(100, Math.max(0, (current / dur) * 100));
+                document.getElementById('progress-fill').style.width = percent + '%';
+                document.getElementById('time-current').innerText = formatTime(current);
+            }
+        }, 1000);
+
+        function formatTime(secs) {
+            const m = Math.floor(secs / 60);
+            const s = Math.floor(secs % 60);
+            return m + ':' + (s < 10 ? '0' : '') + s;
+        }
+    </script>
+</body>
+</html>
