@@ -73,6 +73,7 @@
             border: 4px solid rgba(255,255,255,0.1);
             animation: rotateAlbum 20s linear infinite;
             animation-play-state: paused;
+            background: #111;
         }
         .album-art.playing {
             animation-play-state: running;
@@ -176,7 +177,34 @@
             font-size: 12px;
             color: #606075;
         }
-        /* Keep YT player visible with minimal size so browser never suspends playback */
+        .session-box {
+            margin-top: 16px;
+            background: rgba(255,255,255,0.05);
+            padding: 12px;
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        .session-box input {
+            width: 100%;
+            padding: 8px 12px;
+            border-radius: 8px;
+            border: 1px solid rgba(255,255,255,0.2);
+            background: #111;
+            color: #fff;
+            font-size: 13px;
+            margin-bottom: 8px;
+            outline: none;
+        }
+        .session-box button {
+            background: #1DB954;
+            color: #000;
+            font-weight: 700;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            width: 100%;
+        }
         #yt-container {
             position: fixed;
             bottom: 10px;
@@ -197,7 +225,7 @@
         </div>
 
         <div class="album-art-container" onclick="userTogglePlay()">
-            <img id="album-art" class="album-art" src="https://i.imgur.com/8QZqX4Y.png" alt="Cover">
+            <img id="album-art" class="album-art" src="https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=300&auto=format&fit=crop&q=80" alt="Cover">
             <div class="album-center"></div>
         </div>
 
@@ -220,6 +248,12 @@
             🔊 Klik Di Sini Sekali untuk Aktifkan Suara
         </div>
 
+        <div id="session-input-box" class="session-box" style="display: none;">
+            <p style="font-size: 12px; color: #aaa; margin-bottom: 6px;">Atau masukkan Session ID dari Minecraft:</p>
+            <input type="text" id="manual-session-input" placeholder="Paste Session UUID atau ketik /music connect di game">
+            <button onclick="setManualSession()">Hubungkan</button>
+        </div>
+
         <p class="hint">Biarkan tab ini tetap terbuka di background browser kamu.</p>
     </div>
 
@@ -230,12 +264,27 @@
     <script src="https://www.youtube.com/iframe_api"></script>
     <script>
         const urlParams = new URLSearchParams(window.location.search);
-        const sessionId = urlParams.get('session') || '';
-        const cleanId = sessionId.replace(/-/g, '');
+        let sessionId = urlParams.get('session') || '';
+        let cleanId = sessionId.replace(/-/g, '');
         let ytPlayer = null;
         let currentDuration = 1;
         let currentVol = 80;
         let isAudioUnlocked = false;
+        let evtSource = null;
+
+        if (!sessionId) {
+            document.getElementById('session-input-box').style.display = 'block';
+        }
+
+        function setManualSession() {
+            const inputVal = document.getElementById('manual-session-input').value.trim();
+            if (inputVal) {
+                sessionId = inputVal;
+                cleanId = sessionId.replace(/-/g, '');
+                document.getElementById('session-input-box').style.display = 'none';
+                connectCloudRelay();
+            }
+        }
 
         function unlockAudio() {
             if (isAudioUnlocked) return;
@@ -296,11 +345,15 @@
 
         function connectCloudRelay() {
             if (!cleanId) {
-                document.getElementById('conn-status').innerText = 'Ketik /music connect di game';
+                document.getElementById('conn-status').innerText = '⚠️ Ketik /music connect di game';
                 return;
             }
+            if (evtSource) {
+                evtSource.close();
+            }
+
             const sseUrl = 'https://ntfy.sh/spoticraft_' + cleanId + '/sse';
-            const evtSource = new EventSource(sseUrl);
+            evtSource = new EventSource(sseUrl);
 
             evtSource.onmessage = (event) => {
                 try {
@@ -347,7 +400,6 @@
                         ytPlayer.loadVideoById(data.id);
                         ytPlayer.playVideo();
                     } else if (data.title) {
-                        // Fallback: search query cue
                         ytPlayer.cuePlaylist({
                             listType: 'search',
                             list: data.title
